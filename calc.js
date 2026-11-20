@@ -129,7 +129,12 @@
 
   function percent() {
     if (errorState) return; // 错误态下百分号无效
-    current = format(toNumber(current) / 100);
+    var r = toNumber(current) / 100;
+    if (!isFinite(r)) {
+      setError(); // 与除零/溢出一致，真正锁定错误态
+      return;
+    }
+    current = format(r);
     overwrite = true;
     render();
   }
