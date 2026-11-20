@@ -8,12 +8,20 @@
 - 入口：`index.html`（页面）、`calc.js`（逻辑）
 - 目标：基础计算器 → 支持普通/科学模式切换 → 历史记录功能
 
-## 分支规范（Conventional）
+## 分支规范（需求 → 一条长期 base 开发分支）
+
+**核心模型**：一个需求 = 一条 base 开发分支。需求确认后第一步就为它建一条开发分支作为该需求的 base 并 push 远端；该需求下的需求实现、缺陷修复、文档总结全部基于这条 base 迁出 worktree 开发，做完都合并回这条 base；新需求 = 新开发分支，绝不复用旧 base。
+
 - 主分支：`main`（**受保护，Agent 禁止直接 push、禁止自合并 PR**）
-- 本迭代集成分支：`develop`（从 `main` 拉出，作为本轮任务的基线 base 分支）
-- 任务开发分支：从 `develop` 拉出，命名规范 `<type>/<简短描述>`，例如 `feat/scientific-mode`、`fix/history-sign`
-- 完成后：任务分支合并回 `develop`；`develop` 验证通过后由人类拉 `release/<版本>` → PR → `main` 上线
+- **当前需求 base 开发分支**：`feat/calc-basic`（本需求容器；所有该需求下的任务从它迁出 worktree、做完合回它）
+- 任务 worktree 分支：随意命名（如 `task/HF-123`），只用于向 base 合并，不长期保留、不单独推远端
+- 发布：人类基于当前 base 拉 `release/<版本>` → PR → `main` 上线 → 打 tag
 - type 取值：feat / fix / refactor / perf / docs / test / style / chore / ci / hotfix / release
+
+## 快捷指令
+- **上线**：基于当前开发分支（base）创建 `release/vX.Y.Z` 上线分支并 push 远端（只建分支）。
+- **PR**：把当前分支 PR 到主分支 main/master（受本文件约束）。
+- **发布**：把当前 release 分支 PR 到主分支（正式上线）。
 
 ## 提交规范
 - 遵循 Conventional Commits：`<type>(<scope>): <描述>`
