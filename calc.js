@@ -3,11 +3,11 @@
   "use strict";
 
   var current = "0";      // 当前输入数字（字符串）
-  var previous = null;    // 上一次的操作数（number）
-  var operator = null;    // 待执行的运算符
+  var tokens = [];        // 表达式缓冲：{num:"12"} 或 {op:"+"}（标准优先级求值，TD-10）
   var overwrite = false;  // 下一次输入是否覆盖当前值
   var errorState = false; // 除零等非法运算后的错误态
-  var mode = "normal";    // "normal" | "scientific"
+  var lastOp = null;      // 最后一次等号运算 {a, op, b}，供连续等号重复
+  var pendingOp = false;  // 尾部运算符之后是否还没有输入操作数（运算符替换判据）
   var angleMode = "DEG";  // "DEG" | "RAD"（科学模式角度/弧度约定，默认角度）
 
   var exprEl = document.getElementById("expr");
@@ -17,11 +17,17 @@
 
   function render() {
     resultEl.textContent = current;
-    if (previous !== null && operator !== null) {
-      exprEl.textContent = previous + " " + symbolOf(operator);
-    } else {
-      exprEl.textContent = "";
+    var parts = [];
+    for (var i = 0; i < tokens.length; i++) {
+      var t = tokens[i];
+      if (t.num !== undefined) {
+        if (i > 0) parts.push(" ");
+        parts.push(t.num);
+      } else {
+        parts.push(" " + symbolOf(t.op));
+      }
     }
+    exprEl.textContent = parts.join("");
   }
 
   function symbolOf(op) {
@@ -34,6 +40,7 @@
       errorState = false;
       overwrite = true;
     }
+    pendingOp = false; // 已开始输入操作数，尾部运算符不再是"悬空待替换"
     if (overwrite) {
       current = d === "." ? "0." : d;
       overwrite = false;
@@ -66,29 +73,71 @@
     }
   }
 
+  // 标准优先级求值：先 ^，再 ×÷，后 +−；同级左结合；任一步非有限值返回 NaN
+  function evaluateTokens(list) {
+    var nums = [];
+    var ops = [];
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].num !== undefined) nums.push(toNumber(list[i].num));
+      else ops.push(list[i].op);
+    }
+    if (nums.length === 0) return NaN;
+    var a = nums[0];
+    var bi = 0;
+    // 第一遍：^ （高于乘除，TD-10 Q1=B）
+    var n2 = [a];
+    var o2 = [];
+    for (bi = 0; bi < ops.length; bi++) {
+      var b1 = nums[bi + 1];
+      if (ops[bi] === "^") {
+        n2[n2.length - 1] = compute(n2[n2.length - 1], b1, "^");
+        if (!isFinite(n2[n2.length - 1])) return NaN;
+      } else {
+        o2.push(ops[bi]);
+        n2.push(b1);
+      }
+    }
+    // 第二遍：×÷（降为加减序列）
+    var n3 = [n2[0]];
+    var o3 = [];
+    for (bi = 0; bi < o2.length; bi++) {
+      if (o2[bi] === "*" || o2[bi] === "/") {
+        n3[n3.length - 1] = compute(n3[n3.length - 1], n2[bi + 1], o2[bi]);
+        if (!isFinite(n3[n3.length - 1])) return NaN;
+      } else {
+        o3.push(o2[bi]);
+        n3.push(n2[bi + 1]);
+      }
+    }
+    // 第三遍：+− 左结合
+    var r = n3[0];
+    for (bi = 0; bi < o3.length; bi++) {
+      r = compute(r, n3[bi + 1], o3[bi]);
+      if (!isFinite(r)) return NaN;
+    }
+    return r;
+  }
+
   function setError() {
     errorState = true;
     current = "错误";
-    previous = null;
-    operator = null;
+    tokens = [];
+    lastOp = null; // 错误后连续等号失效（对齐旧版：错误态解除后 = 无操作）
     overwrite = true; // 防止继续追加数字；数字/AC 输入负责解除错误态
     render();
   }
 
   function chooseOperator(op) {
     if (errorState) return; // 错误态下运算符无效，等待 AC 或数字输入
-    if (operator !== null && previous !== null && !overwrite) {
-      var r = compute(previous, toNumber(current), operator);
-      if (!isFinite(r)) {
-        setError();
-        return;
-      }
-      current = format(r);
-      previous = r;
+    if (tokens.length && tokens[tokens.length - 1].op !== undefined && pendingOp) {
+      // 刚按完运算符（未输入任何新内容）：尾部运算符替换（2+×3 → 2×3）
+      tokens[tokens.length - 1] = { op: op };
     } else {
-      previous = toNumber(current);
+      // 已输入左操作数（原始输入或一元/正负号即时结果）：压入并挂新运算符
+      tokens.push({ num: current });
+      tokens.push({ op: op });
     }
-    operator = op;
+    pendingOp = true;
     overwrite = true;
     render();
   }
@@ -102,15 +151,33 @@
 
   function equal() {
     if (errorState) return; // 错误态下等号无效
-    if (operator !== null && previous !== null) {
-      var r = compute(previous, toNumber(current), operator);
+    if (tokens.length >= 2) {
+      if (tokens[tokens.length - 1].op !== undefined) {
+        tokens.push({ num: current }); // 尾部悬空运算符：以当前显示值补全右操作数（对齐旧版语义）
+      } else {
+        tokens[tokens.length - 1].num = current; // 输入中的尾操作数落盘（含一元/正负号即时结果）
+      }
+      var lastNum = tokens[tokens.length - 1];
+      var lastSym = tokens[tokens.length - 2];
+      var r = evaluateTokens(tokens);
       if (!isFinite(r)) {
         setError();
         return;
       }
+      // 记录最后一步供连续等号重复（TD-10 Q3：重复最后一次运算）
+      lastOp = { op: lastSym.op, b: toNumber(lastNum.num) };
+      tokens = [];
       current = format(r);
-      previous = null;
-      operator = null;
+      overwrite = true;
+      render();
+    } else if (lastOp) {
+      // 连续等号：当前值 ⊕ 最后一步的右操作数（12+3=15，= → 18）
+      var r2 = compute(toNumber(current), lastOp.b, lastOp.op);
+      if (!isFinite(r2)) {
+        setError();
+        return;
+      }
+      current = format(r2);
       overwrite = true;
       render();
     }
@@ -118,8 +185,8 @@
 
   function clearAll() {
     current = "0";
-    previous = null;
-    operator = null;
+    tokens = [];
+    lastOp = null;
     overwrite = false;
     errorState = false;
     render();
@@ -129,6 +196,7 @@
     if (errorState) return; // 错误态下正负号无效
     if (current === "0") return;
     current = current.charAt(0) === "-" ? current.slice(1) : "-" + current;
+    pendingOp = false; // 翻转后的值是有效操作数（5×-3 场景）
     render();
   }
 
@@ -140,6 +208,7 @@
       return;
     }
     current = format(r);
+    pendingOp = false; // 百分号结果成为有效操作数
     overwrite = true;
     render();
   }
@@ -179,6 +248,7 @@
       return;
     }
     current = format(r);
+    pendingOp = false; // 一元结果成为有效操作数
     overwrite = true;
     render();
   }
@@ -186,6 +256,7 @@
   function piAction() {
     if (errorState) return; // 错误态下常量输入无效
     current = format(Math.PI); // π 作为输入常量：后续数字覆盖（overwrite=true），运算符正常衔接
+    pendingOp = false; // π 是有效操作数
     overwrite = true;
     render();
   }
@@ -196,9 +267,8 @@
     angleBtn.textContent = angleMode; // 即时生效，不触发求值、不清 current
   }
 
-  // 模式切换：只切显隐，计算状态（current/previous/operator/errorState）完整保留
+  // 模式切换：只切显隐，计算状态（current/tokens/errorState）完整保留
   function setMode(m) {
-    mode = m;
     calcEl.classList.toggle("scientific", m === "scientific");
   }
 
