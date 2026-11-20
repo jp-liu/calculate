@@ -58,6 +58,29 @@
     grid-template-columns: repeat(4, 1fr);
     gap: 10px;
   }
+  .mode-bar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .mode-bar button {
+    flex: 1;
+    height: 34px;
+    font-size: 14px;
+    border-radius: 10px;
+  }
+  .mode-bar .btn-normal { background: var(--accent); color: #1c1c1e; font-weight: 600; }
+  .mode-bar .btn-sci { background: var(--key); }
+  .calc.scientific .btn-normal { background: var(--key); color: var(--text); font-weight: 400; }
+  .calc.scientific .btn-sci { background: var(--accent); color: #1c1c1e; font-weight: 600; }
+  .keys.sci {
+    display: none;
+    grid-template-columns: repeat(5, 1fr);
+    margin-bottom: 10px;
+  }
+  .calc.scientific .keys.sci { display: grid; }
+  .keys.sci button { height: 46px; font-size: 16px; border-radius: 12px; }
+  #angleBtn { font-size: 14px; letter-spacing: .5px; }
   button {
     border: none;
     outline: none;
@@ -79,10 +102,26 @@
 </style>
 </head>
 <body>
-  <div class="calc">
+  <div class="calc" id="calc">
+    <div class="mode-bar">
+      <button class="btn-normal" data-mode-btn="normal">普通</button>
+      <button class="btn-sci" data-mode-btn="scientific">科学</button>
+    </div>
     <div class="display">
       <div class="expr" id="expr"></div>
       <div class="result" id="result">0</div>
+    </div>
+    <div class="keys sci">
+      <button data-fn="sin">sin</button>
+      <button data-fn="cos">cos</button>
+      <button data-fn="tan">tan</button>
+      <button id="angleBtn" data-fn="angle">DEG</button>
+      <button data-fn="ln">ln</button>
+      <button data-fn="log">log</button>
+      <button data-fn="sqrt">√</button>
+      <button data-fn="fact">!</button>
+      <button class="accent" data-op="^">x^y</button>
+      <button data-fn="pi">π</button>
     </div>
     <div class="keys">
       <button class="fn" data-action="clear">AC</button>

@@ -13,7 +13,7 @@
 **核心模型**：一个需求 = 一条 base 开发分支。需求确认后第一步就为它建一条开发分支作为该需求的 base 并 push 远端；该需求下的需求实现、缺陷修复、文档总结全部基于这条 base 迁出 worktree 开发，做完都合并回这条 base；新需求 = 新开发分支，绝不复用旧 base。
 
 - 主分支：`main`（**受保护，Agent 禁止直接 push、禁止自合并 PR**）
-- **当前需求 base 开发分支**：`feat/calc-basic`（本需求容器；所有该需求下的任务从它迁出 worktree、做完合回它）
+- **当前需求 base 开发分支**：`feat/scientific-calc`（科学计算器需求；所有该需求下的任务从它迁出 worktree、做完合回它。上一需求 `feat/calc-basic` 已上线）
 - 任务 worktree 分支：随意命名（如 `task/HF-123`），只用于向 base 合并，不长期保留、不单独推远端
 - 发布：人类基于当前 base 拉 `release/<版本>` → PR → `main` 上线 → 打 tag
 - type 取值：feat / fix / refactor / perf / docs / test / style / chore / ci / hotfix / release
